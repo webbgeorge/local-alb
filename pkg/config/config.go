@@ -29,15 +29,6 @@ type Action struct {
 	// TODO implement AuthenticateCognito
 }
 
-type Condition struct {
-	HostHeader        string
-	HTTPHeader        string
-	HTTPRequestMethod string
-	PathPattern       string
-	QueryString       string
-	SourceIP          string
-}
-
 type AuthenticateOIDC struct {
 	OnUnauthenticatedRequest string
 	Scope                    string
@@ -62,4 +53,37 @@ type Redirect struct {
 	Port       int
 	Path       string
 	Query      string
+}
+
+// TODO implement SourceIP conditions
+type Condition struct {
+	HostHeader        *HostHeaderCondition
+	HTTPHeader        *HTTPHeaderCondition
+	HTTPRequestMethod *HTTPRequestMethodCondition
+	PathPattern       *PathPatternCondition
+	QueryString       *QueryStringCondition
+}
+
+type HostHeaderCondition struct {
+	Values []string // match any in list
+}
+
+type HTTPHeaderCondition struct {
+	HTTPHeaderName string
+	Values         []string // match any in list
+}
+
+type HTTPRequestMethodCondition struct {
+	Values []string // match any in list
+}
+
+type PathPatternCondition struct {
+	Values []string // match any in list
+}
+
+type QueryStringCondition struct {
+	Values []struct { // match any in list
+		Key   string
+		Value string
+	}
 }

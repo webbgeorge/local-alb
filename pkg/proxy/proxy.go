@@ -71,12 +71,7 @@ func errorHandler() func(w http.ResponseWriter, r *http.Request, err error) {
 // TODO logging
 func handler(conf config.Config, revProxy *httputil.ReverseProxy) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		actions, err := match(conf, r)
-		if err != nil {
-			writeErr(w, r, 500, "Internal server error")
-			return
-		}
-
+		actions := match(conf, r)
 		if len(actions) == 0 {
 			if len(conf.DefaultActions) == 0 {
 				writeErr(w, r, 500, "Internal server error")

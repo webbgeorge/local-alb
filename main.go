@@ -19,7 +19,9 @@ func main() {
 		Rules: []config.Rule{
 			{
 				Conditions: []config.Condition{{
-					PathPattern: "/test",
+					PathPattern: &config.PathPatternCondition{
+						Values: []string{"/t?st/*/blue"},
+					},
 				}},
 				Actions: []config.Action{{
 					Type: "fixed-response",
