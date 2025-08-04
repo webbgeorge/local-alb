@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -37,7 +38,10 @@ func (p *Proxy) Start() {
 	}
 }
 
-type forwardContextKey struct{}
+type (
+	forwardContextKey struct{}
+	authContextKey    struct{}
+)
 
 func director() func(r *http.Request) {
 	return func(r *http.Request) {
@@ -53,7 +57,11 @@ func director() func(r *http.Request) {
 		r.Header.Del("x-amzn-oidc-data")
 		r.Header.Del("X-Forwarded-For")
 
-		// TODO get auth context if applicable and add headers
+		authData, ok := r.Context().Value(authContextKey{}).(authData)
+		if ok {
+			// TODO add other auth headers
+			r.Header.Set("x-amzn-oidc-identity", authData.username)
+		}
 
 		r.URL.Scheme = forward.Protocol
 		r.URL.Host = fmt.Sprintf("%s:%d", forward.Host, forward.Port)
@@ -96,13 +104,17 @@ func handler(conf config.Config, revProxy *httputil.ReverseProxy) http.HandlerFu
 				handleFixedResponseAction(action.FixedResponse, w, r)
 				return
 			case config.ActionTypeAuthenticateOIDC:
-				shouldContinue, err := handleAuthenticateOIDCAction(action.AuthenticateOIDC, w, r)
+				shouldContinue, authData, err := handleAuthenticateOIDCAction(action.AuthenticateOIDC, w, r)
 				if err != nil {
 					writeErr(w, r, 500, "Internal server error")
 					return
 				}
 				if !shouldContinue {
 					return
+				}
+				if authData != nil {
+					// overwrite r to include auth context for next action in stack
+					r = r.WithContext(context.WithValue(r.Context(), authContextKey{}, *authData))
 				}
 			}
 		}
@@ -125,9 +137,9 @@ func handleRedirectAction(redirect config.Redirect, w http.ResponseWriter, r *ht
 	u.Path = redirect.Path      // TODO handle replace of #{path}, #{host}, #{port}
 	u.RawQuery = redirect.Query // TODO handle replace of #{query}, #{path}, #{host}, #{port}
 
-	code := 301
+	code := http.StatusMovedPermanently
 	if redirect.StatusCode == "HTTP_302" {
-		code = 302
+		code = http.StatusFound
 	}
 
 	http.Redirect(w, r, u.String(), code)
@@ -140,13 +152,45 @@ func handleFixedResponseAction(fixedResponse config.FixedResponse, w http.Respon
 	_, _ = w.Write([]byte(fixedResponse.MessageBody))
 }
 
-func handleAuthenticateOIDCAction(authOIDC config.AuthenticateOIDC, w http.ResponseWriter, r *http.Request) (bool, error) {
-	writeErr(w, r, 401, "Unauthorized") // TODO implement
-	return false, nil                   // TODO
+func handleAuthenticateOIDCAction(authOIDC config.AuthenticateOIDC, w http.ResponseWriter, r *http.Request) (bool, *authData, error) {
+	authData, err := authenticate(r)
+	if err != nil {
+		return false, nil, err
+	}
+
+	// if user is authenticated
+	if authData != nil {
+		return true, authData, nil
+	}
+
+	switch authOIDC.OnUnauthenticatedRequest {
+	case config.OnUnauthenticatedRequestDeny:
+		writeErr(w, r, 401, "Unauthorized")
+		return false, nil, nil
+	case config.OnUnauthenticatedRequestAllow:
+		return true, nil, nil
+	case config.OnUnauthenticatedRequestAuthenticate:
+		// TODO send requested scopes
+		http.Redirect(w, r, "/alb/auth", http.StatusFound)
+		return false, nil, nil
+	}
+
+	return false, nil, errors.New("unexpected OnUnauthenticatedRequest in config")
 }
 
 func writeErr(w http.ResponseWriter, r *http.Request, code int, message string) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(code)
 	_, _ = w.Write([]byte(message))
+}
+
+// TODO move to service
+type authData struct {
+	username string
+}
+
+// TODO move to service
+func authenticate(r *http.Request) (*authData, error) {
+	// return nil, nil
+	return &authData{username: "ggg"}, nil
 }

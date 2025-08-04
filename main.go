@@ -32,6 +32,30 @@ func main() {
 					},
 				}},
 			},
+			{
+				Conditions: []config.Condition{{
+					PathPattern: &config.PathPatternCondition{
+						Values: []string{"/auth/*"},
+					},
+				}},
+				Actions: []config.Action{
+					{
+						Type: "authenticate-oidc",
+						AuthenticateOIDC: config.AuthenticateOIDC{
+							Scope:                    "",
+							OnUnauthenticatedRequest: "deny",
+						},
+					},
+					{
+						Type: "forward",
+						Forward: config.Forward{
+							Protocol: "http",
+							Host:     "localhost",
+							Port:     8088,
+						},
+					},
+				},
+			},
 		},
 	}).Start()
 }

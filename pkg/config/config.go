@@ -5,6 +5,10 @@ const (
 	ActionTypeRedirect         = "redirect"
 	ActionTypeFixedResponse    = "fixed-response"
 	ActionTypeAuthenticateOIDC = "authenticate-oidc"
+
+	OnUnauthenticatedRequestDeny         = "deny"
+	OnUnauthenticatedRequestAllow        = "allow"
+	OnUnauthenticatedRequestAuthenticate = "authenticate"
 )
 
 // TODO validation
